@@ -86,7 +86,8 @@ function App() {
       row,
       col,
       piece,
-      isKing: piece === piece.toUpperCase()
+      isKing: piece === piece.toUpperCase(),
+      isBlackSquare: (row + col) % 2 === 0
     });
     
     if (!piece) return [];
@@ -121,7 +122,8 @@ function App() {
         console.log('Checking jump:', {
           from: { row, col },
           over: { row: jumpedRow, col: jumpedCol, piece: game.board[jumpedRow]?.[jumpedCol] },
-          to: { row: newRow, col: newCol, piece: game.board[newRow]?.[newCol] }
+          to: { row: newRow, col: newCol },
+          isBlackSquare: (newRow + newCol) % 2 === 0
         });
 
         // Check if jump is within bounds
@@ -149,11 +151,11 @@ function App() {
 
         console.log('Jump validation:', {
           isOpponentPiece,
-          isBlackSquare: (newRow + newCol) % 2 === 1
+          isBlackSquare: (newRow + newCol) % 2 === 0
         });
 
         // Only allow jumps over opponent's pieces to black squares
-        if (isOpponentPiece && (newRow + newCol) % 2 === 1) {
+        if (isOpponentPiece && (newRow + newCol) % 2 === 0) {
           jumps.push({ row: newRow, col: newCol });
           console.log('Valid jump found:', { row: newRow, col: newCol });
         }
@@ -174,7 +176,8 @@ function App() {
 
         console.log('Checking regular move:', {
           from: { row, col },
-          to: { row: newRow, col: newCol, piece: game.board[newRow]?.[newCol] }
+          to: { row: newRow, col: newCol },
+          isBlackSquare: (newRow + newCol) % 2 === 0
         });
 
         // Check if move is within bounds
@@ -190,9 +193,19 @@ function App() {
         }
 
         // Only allow moves to black squares
-        if ((newRow + newCol) % 2 === 1) {
+        const isBlackSquare = (newRow + newCol) % 2 === 0;
+        console.log('Square color check:', {
+          newRow,
+          newCol,
+          sum: newRow + newCol,
+          isBlackSquare
+        });
+
+        if (isBlackSquare) {
           moves.push({ row: newRow, col: newCol });
           console.log('Valid move found:', { row: newRow, col: newCol });
+        } else {
+          console.log('Not a black square');
         }
       }
     }
@@ -341,7 +354,7 @@ function App() {
             display: 'flex'
           }}>
             {row.map((piece, colIndex) => {
-              const isBlackSquare = (rowIndex + colIndex) % 2 === 1;
+              const isBlackSquare = (rowIndex + colIndex) % 2 === 0;
               const isSelected = selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex;
               const isValidMove = validMoves.some(move => move.row === rowIndex && move.col === colIndex);
               
