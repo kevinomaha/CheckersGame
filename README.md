@@ -1,58 +1,93 @@
+# AWS Checkers Game
 
-# Welcome to your CDK Python project!
+A serverless checkers game built with AWS CDK, featuring real-time gameplay and statistics tracking.
 
-This is a blank project for CDK development with Python.
+## Architecture
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+The application consists of:
+- Frontend: Static website hosted on S3 and served through CloudFront
+- Backend: API Gateway + Lambda for game logic
+- Database: DynamoDB for game state and player statistics
 
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
+## Prerequisites
 
-To manually create a virtualenv on MacOS and Linux:
+- Python 3.9 or later
+- AWS CDK CLI
+- AWS Account and configured credentials
+- Node.js and npm (for frontend development)
 
-```
-$ python -m venv .venv
-```
-
-After the init process completes and the virtualenv is created, you can use the following
-step to activate your virtualenv.
+## Project Structure
 
 ```
-$ source .venv/bin/activate
+CheckersGame/
+├── frontend/           # Static web frontend
+│   ├── index.html     # Main HTML file
+│   ├── styles.css     # Styles for the game
+│   └── app.js         # Game logic
+├── lambda/            # Backend Lambda functions
+│   └── game.py        # Game API implementation
+└── checkers_game/     # CDK infrastructure code
+    └── checkers_game_stack.py
 ```
 
-If you are a Windows platform, you would activate the virtualenv like this:
+## Deployment Instructions
 
-```
-% .venv\Scripts\activate.bat
-```
-
-Once the virtualenv is activated, you can install the required dependencies.
-
-```
-$ pip install -r requirements.txt
+1. Create and activate a Python virtual environment:
+```bash
+python -m venv .venv
+.venv\Scripts\activate  # On Windows
+source .venv/bin/activate  # On Unix or MacOS
 ```
 
-At this point you can now synthesize the CloudFormation template for this code.
-
+2. Install the required dependencies:
+```bash
+pip install -r requirements.txt
 ```
-$ cdk synth
+
+3. Deploy the CDK stack:
+```bash
+cdk deploy
 ```
 
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
+4. After deployment, the CDK will output:
+- WebsiteURL: The CloudFront URL where the game is hosted
+- ApiEndpoint: The API Gateway endpoint
 
-## Useful commands
+5. Update the API endpoint in the frontend:
+   - Open `frontend/app.js`
+   - Set the `apiEndpoint` variable to the API Gateway endpoint URL
 
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
+## Playing the Game
 
-Enjoy!
+1. Open the WebsiteURL in your browser
+2. Click "New Game" to start a game
+3. Red pieces move first
+4. Click on a piece to select it, then click on a valid square to move
+5. Capture opponent's pieces by jumping over them
+6. Get a piece to the opposite end of the board to make it a king
+7. The game ends when one player captures all opponent's pieces
+
+## Game Rules
+
+- Pieces can only move diagonally forward (unless they are kings)
+- Kings can move diagonally both forward and backward
+- Pieces must jump over opponent's pieces when possible
+- Multiple jumps are allowed in a single turn
+- The game ends when one player has no pieces left or cannot make a legal move
+
+## Development
+
+To run the frontend locally:
+1. Navigate to the frontend directory
+2. Open `index.html` in a web browser
+
+To modify the game logic:
+1. Edit the Lambda function in `lambda/game.py`
+2. Deploy changes with `cdk deploy`
+
+## Cleanup
+
+To remove all AWS resources created by this project:
+```bash
+cdk destroy
+```
