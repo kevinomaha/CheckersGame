@@ -80,6 +80,30 @@ function App() {
     }
   };
 
+  const countPieces = (color: 'r' | 'b'): number => {
+    let count = 0;
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = game.board[row][col];
+        if (piece && piece.toLowerCase() === color) {
+          count++;
+        }
+      }
+    }
+    return count;
+  };
+
+  const checkWinner = (): string | null => {
+    const redPieces = countPieces('r');
+    const blackPieces = countPieces('b');
+
+    console.log('Piece count:', { red: redPieces, black: blackPieces });
+
+    if (redPieces === 0) return 'black';
+    if (blackPieces === 0) return 'red';
+    return null;
+  };
+
   const calculateValidMoves = (row: number, col: number): Move[] => {
     const piece = game.board[row][col];
     console.log('Calculating moves for piece:', {
@@ -325,6 +349,16 @@ function App() {
         // Calculate new valid moves from the new position
         setValidMoves(calculateValidMoves(row, col));
       }
+
+      // Check for winner after move
+      const winner = checkWinner();
+      if (winner) {
+        setGame(prev => ({
+          ...prev,
+          status: 'finished',
+          winner: winner
+        }));
+      }
     } catch (error) {
       console.error('Error making move:', error);
       alert(error instanceof Error ? error.message : 'Invalid move. Please try again.');
@@ -342,7 +376,7 @@ function App() {
         fontWeight: 'bold',
         color: game.status === 'finished' ? '#4CAF50' : '#2196F3'
       }}>
-        {getGameStatus()}
+        {game.status === 'finished' && game.winner ? `Game Over - ${game.winner.charAt(0).toUpperCase() + game.winner.slice(1)} Wins!` : `Current Turn: ${game.currentPlayer.charAt(0).toUpperCase() + game.currentPlayer.slice(1)}`}
       </div>
       <div className="game-board" style={{
         display: 'inline-block',
