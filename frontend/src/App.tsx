@@ -33,7 +33,7 @@ function App() {
   });
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [validMoves, setValidMoves] = useState<Move[]>([]);
-  const apiEndpoint = 'https://rd2ll5az83.execute-api.us-east-1.amazonaws.com/prod';
+  const apiEndpoint = 'https://w9cqnnyhbi.execute-api.us-east-1.amazonaws.com/prod';
 
   const getGameStatus = () => {
     if (!game.gameId) {
@@ -60,9 +60,18 @@ function App() {
         throw new Error('Failed to create game');
       }
 
-      const newGame = await response.json();
-      console.log('New game state:', newGame);
-      setGame(newGame);
+      const data = await response.json();
+      console.log('API Response:', data);
+      
+      if (typeof data === 'string') {
+        const newGame = JSON.parse(data);
+        console.log('Parsed new game state:', newGame);
+        setGame(newGame);
+      } else {
+        console.log('Setting game state directly:', data);
+        setGame(data);
+      }
+      
       setSelectedSquare(null);
       setValidMoves([]);
     } catch (error) {
@@ -73,33 +82,35 @@ function App() {
 
   const calculateValidMoves = (row: number, col: number): Move[] => {
     const piece = game.board[row][col];
+    console.log('Calculating moves for piece:', {
+      row,
+      col,
+      piece,
+      isKing: piece === piece.toUpperCase()
+    });
+    
     if (!piece) return [];
 
     const isKing = piece === piece.toUpperCase();
     const moves: Move[] = [];
 
-    // Determine valid directions based on piece type
+    // Determine valid directions based on piece type and color
     const directions: number[] = [];
-    if (piece.toLowerCase() === 'r' || isKing) directions.push(-1); // Up
-    if (piece.toLowerCase() === 'b' || isKing) directions.push(1);  // Down
-
-    // Check for regular moves
-    for (const rowDir of directions) {
-      for (const colDir of [-1, 1]) { // Left and right
-        const newRow = row + rowDir;
-        const newCol = col + colDir;
-
-        if (newRow < 0 || newRow > 7 || newCol < 0 || newCol > 7) continue;
-        if (game.board[newRow][newCol]) continue;
-
-        // Only allow moves to black squares
-        if ((newRow + newCol) % 2 === 1) {
-          moves.push({ row: newRow, col: newCol });
-        }
-      }
+    if (piece.toLowerCase() === 'r') {
+      directions.push(-1); // Red pieces move up
+    } else if (piece.toLowerCase() === 'b') {
+      directions.push(1);  // Black pieces move down
+    }
+    if (isKing) {
+      // Kings can move both up and down
+      if (!directions.includes(-1)) directions.push(-1);
+      if (!directions.includes(1)) directions.push(1);
     }
 
-    // Check for jumps
+    console.log('Movement directions:', directions);
+
+    // First check for jumps (these are mandatory)
+    const jumps: Move[] = [];
     for (const rowDir of directions) {
       for (const colDir of [-1, 1]) { // Left and right
         const jumpedRow = row + rowDir;
@@ -107,21 +118,86 @@ function App() {
         const newRow = row + (rowDir * 2);
         const newCol = col + (colDir * 2);
 
-        if (newRow < 0 || newRow > 7 || newCol < 0 || newCol > 7) continue;
-        if (!game.board[jumpedRow][jumpedCol]) continue;
-        if (game.board[newRow][newCol]) continue;
+        console.log('Checking jump:', {
+          from: { row, col },
+          over: { row: jumpedRow, col: jumpedCol, piece: game.board[jumpedRow]?.[jumpedCol] },
+          to: { row: newRow, col: newCol, piece: game.board[newRow]?.[newCol] }
+        });
 
+        // Check if jump is within bounds
+        if (newRow < 0 || newRow > 7 || newCol < 0 || newCol > 7) {
+          console.log('Jump out of bounds');
+          continue;
+        }
+        
+        // Check if there's an opponent's piece to jump over
         const jumpedPiece = game.board[jumpedRow][jumpedCol];
+        if (!jumpedPiece) {
+          console.log('No piece to jump over');
+          continue;
+        }
+        
+        // Check if landing square is empty
+        if (game.board[newRow][newCol]) {
+          console.log('Landing square occupied');
+          continue;
+        }
+        
         const isOpponentPiece = 
           (piece.toLowerCase() === 'r' && jumpedPiece.toLowerCase() === 'b') ||
           (piece.toLowerCase() === 'b' && jumpedPiece.toLowerCase() === 'r');
 
+        console.log('Jump validation:', {
+          isOpponentPiece,
+          isBlackSquare: (newRow + newCol) % 2 === 1
+        });
+
+        // Only allow jumps over opponent's pieces to black squares
         if (isOpponentPiece && (newRow + newCol) % 2 === 1) {
-          moves.push({ row: newRow, col: newCol });
+          jumps.push({ row: newRow, col: newCol });
+          console.log('Valid jump found:', { row: newRow, col: newCol });
         }
       }
     }
 
+    // If there are jumps available, they are mandatory
+    if (jumps.length > 0) {
+      console.log('Mandatory jumps found:', jumps);
+      return jumps;
+    }
+
+    // If no jumps are available, check for regular moves
+    for (const rowDir of directions) {
+      for (const colDir of [-1, 1]) { // Left and right
+        const newRow = row + rowDir;
+        const newCol = col + colDir;
+
+        console.log('Checking regular move:', {
+          from: { row, col },
+          to: { row: newRow, col: newCol, piece: game.board[newRow]?.[newCol] }
+        });
+
+        // Check if move is within bounds
+        if (newRow < 0 || newRow > 7 || newCol < 0 || newCol > 7) {
+          console.log('Move out of bounds');
+          continue;
+        }
+        
+        // Check if destination square is empty
+        if (game.board[newRow][newCol]) {
+          console.log('Destination square occupied');
+          continue;
+        }
+
+        // Only allow moves to black squares
+        if ((newRow + newCol) % 2 === 1) {
+          moves.push({ row: newRow, col: newCol });
+          console.log('Valid move found:', { row: newRow, col: newCol });
+        }
+      }
+    }
+
+    console.log('Final valid moves:', moves);
     return moves;
   };
 
@@ -332,16 +408,15 @@ function App() {
           style={{
             padding: '10px 20px',
             fontSize: '16px',
-            backgroundColor: game.status === 'finished' ? '#4CAF50' : '#ccc',
+            backgroundColor: '#4CAF50',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: game.status === 'finished' ? 'pointer' : 'not-allowed',
+            cursor: 'pointer',
             marginBottom: '20px'
           }}
-          disabled={game.status !== 'finished' && game.gameId !== ''}
         >
-          {!game.gameId ? 'New Game' : game.status === 'finished' ? 'Play Again' : 'Game in Progress'}
+          {game.status === 'finished' ? 'Play Again' : game.gameId ? 'Restart Game' : 'New Game'}
         </button>
       </div>
     </div>

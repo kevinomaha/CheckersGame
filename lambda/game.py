@@ -62,6 +62,12 @@ def create_game(event):
     
     return {
         'statusCode': 201,
+        'headers': {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+            'Content-Type': 'application/json'
+        },
         'body': json.dumps(game)
     }
 
@@ -73,11 +79,23 @@ def get_game(event):
     if 'Item' not in response:
         return {
             'statusCode': 404,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Content-Type': 'application/json'
+            },
             'body': json.dumps({'error': 'Game not found'})
         }
     
     return {
         'statusCode': 200,
+        'headers': {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+            'Content-Type': 'application/json'
+        },
         'body': json.dumps(response['Item'])
     }
 
@@ -144,6 +162,12 @@ def update_game(event):
             print("Game not found")
             return {
                 'statusCode': 404,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                    'Content-Type': 'application/json'
+                },
                 'body': json.dumps({'error': 'Game not found'})
             }
         
@@ -165,6 +189,12 @@ def update_game(event):
             print(f"Current player: {current_player}")
             return {
                 'statusCode': 400,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                    'Content-Type': 'application/json'
+                },
                 'body': json.dumps({
                     'error': 'Invalid move',
                     'details': {
@@ -231,6 +261,12 @@ def update_game(event):
         
         return {
             'statusCode': 200,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Content-Type': 'application/json'
+            },
             'body': json.dumps({
                 **game,
                 'hasMoreJumps': has_more_jumps
@@ -243,6 +279,12 @@ def update_game(event):
         traceback.print_exc()
         return {
             'statusCode': 400,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Content-Type': 'application/json'
+            },
             'body': json.dumps({
                 'error': f'Error processing move: {str(e)}',
                 'details': {
@@ -440,6 +482,12 @@ def get_stats(event):
     if not player_id:
         return {
             'statusCode': 400,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Content-Type': 'application/json'
+            },
             'body': json.dumps({'error': 'Player not authenticated'})
         }
     
@@ -453,6 +501,12 @@ def get_stats(event):
     
     return {
         'statusCode': 200,
+        'headers': {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+            'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+            'Content-Type': 'application/json'
+        },
         'body': json.dumps(stats)
     }
 
@@ -460,13 +514,6 @@ def handler(event, context):
     """Main Lambda handler"""
     http_method = event['httpMethod']
     resource = event['resource']
-    
-    # Add CORS headers
-    headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'OPTIONS,POST,GET,PUT,DELETE'
-    }
     
     try:
         if resource == '/games':
@@ -485,15 +532,25 @@ def handler(event, context):
         else:
             response = {
                 'statusCode': 400,
+                'headers': {
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                    'Content-Type': 'application/json'
+                },
                 'body': json.dumps({'error': 'Invalid endpoint'})
             }
         
-        response['headers'] = headers
         return response
     
     except Exception as e:
         return {
             'statusCode': 500,
-            'headers': headers,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token',
+                'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+                'Content-Type': 'application/json'
+            },
             'body': json.dumps({'error': str(e)})
         }
