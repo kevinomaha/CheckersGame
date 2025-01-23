@@ -11,20 +11,16 @@ stats_table = dynamodb.Table(os.environ['STATS_TABLE'])
 
 def create_initial_board():
     """Create the initial checkers board state"""
-    board = [[None] * 8 for _ in range(8)]
-    
-    # Place black pieces (top of board)
-    for row in range(3):
-        for col in range(8):
-            if (row + col) % 2 == 1:
-                board[row][col] = {'color': 'black', 'king': False}
-    
-    # Place red pieces (bottom of board)
-    for row in range(5, 8):
-        for col in range(8):
-            if (row + col) % 2 == 1:
-                board[row][col] = {'color': 'red', 'king': False}
-    
+    board = [
+        ['b', '', 'b', '', 'b', '', 'b', ''],
+        ['', 'b', '', 'b', '', 'b', '', 'b'],
+        ['b', '', 'b', '', 'b', '', 'b', ''],
+        ['', '', '', '', '', '', '', ''],
+        ['', '', '', '', '', '', '', ''],
+        ['', 'r', '', 'r', '', 'r', '', 'r'],
+        ['r', '', 'r', '', 'r', '', 'r', ''],
+        ['', 'r', '', 'r', '', 'r', '', 'r']
+    ]
     return board
 
 def create_game(event):
@@ -35,8 +31,8 @@ def create_game(event):
     game = {
         'gameId': game_id,
         'board': create_initial_board(),
-        'currentTurn': 'red',
-        'status': 'active',
+        'currentPlayer': 'red',
+        'status': 'in_progress',
         'createdAt': timestamp,
         'updatedAt': timestamp,
         'players': {
@@ -78,7 +74,7 @@ def is_valid_move(board, from_pos, to_pos, player_color):
     
     # Check if there's a piece at the start position and it's the right color
     piece = board[from_row][from_col]
-    if not piece or piece['color'] != player_color:
+    if not piece or (piece != 'r' and piece != 'b') or (player_color == 'red' and piece != 'r') or (player_color == 'black' and piece != 'b'):
         return False
     
     # Check if destination is empty
@@ -90,7 +86,6 @@ def is_valid_move(board, from_pos, to_pos, player_color):
         return False
     
     # Movement rules
-    is_king = piece['king']
     row_diff = to_row - from_row
     col_diff = abs(to_col - from_col)
     
@@ -100,8 +95,6 @@ def is_valid_move(board, from_pos, to_pos, player_color):
             return True
         if player_color == 'black' and row_diff == 1:
             return True
-        if is_king and abs(row_diff) == 1:
-            return True
     
     # Jump move
     elif col_diff == 2:
@@ -109,12 +102,10 @@ def is_valid_move(board, from_pos, to_pos, player_color):
         mid_col = (from_col + to_col) // 2
         jumped_piece = board[mid_row][mid_col]
         
-        if jumped_piece and jumped_piece['color'] != player_color:
+        if jumped_piece and jumped_piece != '' and jumped_piece != piece:
             if player_color == 'red' and row_diff == -2:
                 return True
             if player_color == 'black' and row_diff == 2:
-                return True
-            if is_king and abs(row_diff) == 2:
                 return True
     
     return False
@@ -123,8 +114,18 @@ def make_move(event):
     """Make a move in the game"""
     game_id = event['pathParameters']['gameId']
     body = json.loads(event['body'])
-    from_pos = body['from']
-    to_pos = body['to']
+    
+    # Extract move coordinates
+    from_row = body.get('fromRow')
+    from_col = body.get('fromCol')
+    to_row = body.get('toRow')
+    to_col = body.get('toCol')
+    
+    if any(x is None for x in [from_row, from_col, to_row, to_col]):
+        return {
+            'statusCode': 400,
+            'body': json.dumps({'error': 'Missing move coordinates'})
+        }
     
     # Get current game state
     response = game_table.get_item(Key={'gameId': game_id})
@@ -136,57 +137,59 @@ def make_move(event):
     
     game = response['Item']
     board = game['board']
-    current_turn = game['currentTurn']
+    current_player = game['currentPlayer']
+    
+    # Convert coordinates to tuples for validation
+    from_pos = (from_row, from_col)
+    to_pos = (to_row, to_col)
     
     # Validate move
-    if not is_valid_move(board, from_pos, to_pos, current_turn):
+    if not is_valid_move(board, from_pos, to_pos, current_player):
         return {
             'statusCode': 400,
             'body': json.dumps({'error': 'Invalid move'})
         }
     
     # Make the move
-    piece = board[from_pos[0]][from_pos[1]]
-    board[from_pos[0]][from_pos[1]] = None
-    board[to_pos[0]][to_pos[1]] = piece
+    piece = board[from_row][from_col]
+    board[from_row][from_col] = ''
+    board[to_row][to_col] = piece
     
     # Check if piece becomes king
-    if (current_turn == 'red' and to_pos[0] == 0) or (current_turn == 'black' and to_pos[0] == 7):
-        piece['king'] = True
+    if (piece == 'r' and to_row == 0) or (piece == 'b' and to_row == 7):
+        board[to_row][to_col] = piece.upper()
     
     # Handle jumps
-    if abs(to_pos[0] - from_pos[0]) == 2:
-        mid_row = (from_pos[0] + to_pos[0]) // 2
-        mid_col = (from_pos[1] + to_pos[1]) // 2
-        board[mid_row][mid_col] = None
+    if abs(to_row - from_row) == 2:
+        mid_row = (from_row + to_row) // 2
+        mid_col = (from_col + to_col) // 2
+        board[mid_row][mid_col] = ''
     
     # Update game state
     game['board'] = board
-    game['currentTurn'] = 'black' if current_turn == 'red' else 'red'
+    game['currentPlayer'] = 'black' if current_player == 'red' else 'red'
     game['updatedAt'] = datetime.utcnow().isoformat()
     
     # Check for winner
-    red_pieces = black_pieces = 0
+    red_pieces = 0
+    black_pieces = 0
     for row in board:
         for cell in row:
-            if cell:
-                if cell['color'] == 'red':
-                    red_pieces += 1
-                else:
-                    black_pieces += 1
+            if cell.lower() == 'r':
+                red_pieces += 1
+            elif cell.lower() == 'b':
+                black_pieces += 1
     
     if red_pieces == 0:
-        game['status'] = 'completed'
+        game['status'] = 'finished'
         game['winner'] = 'black'
-        update_stats(game['players']['black'], True)
-        update_stats(game['players']['red'], False)
     elif black_pieces == 0:
-        game['status'] = 'completed'
+        game['status'] = 'finished'
         game['winner'] = 'red'
-        update_stats(game['players']['red'], True)
-        update_stats(game['players']['black'], False)
     
+    # Save updated game state
     game_table.put_item(Item=game)
+    
     return {
         'statusCode': 200,
         'body': json.dumps(game)
