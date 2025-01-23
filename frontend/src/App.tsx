@@ -23,26 +23,20 @@ interface Move {
 }
 
 function App() {
-  const [game, setGame] = useState<GameState>({
-    gameId: '',
-    board: Array(8).fill(null).map(() => Array(8).fill('')),
-    currentPlayer: 'red',
-    status: 'active',
-    createdAt: '',
-    updatedAt: ''
-  });
+  const [game, setGame] = useState<GameState | null>(null);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [validMoves, setValidMoves] = useState<Move[]>([]);
+  const [jumpingPiece, setJumpingPiece] = useState<Square | null>(null);
   const apiEndpoint = 'https://w9cqnnyhbi.execute-api.us-east-1.amazonaws.com/prod';
 
   const getGameStatus = () => {
-    if (!game.gameId) {
+    if (!game) {
       return "Click 'New Game' to start playing!";
     }
-    if (game.status === 'finished') {
-      return `Game Over! ${game.winner?.toUpperCase()} wins! 🎉`;
+    if (game.status === 'finished' && game.winner) {
+      return `Game Over - ${game.winner.charAt(0).toUpperCase() + game.winner.slice(1)} Wins!`;
     }
-    return `Current Turn: ${game.currentPlayer.toUpperCase()}`;
+    return `Current Turn: ${game.currentPlayer.charAt(0).toUpperCase() + game.currentPlayer.slice(1)}`;
   };
 
   const createNewGame = async () => {
@@ -84,7 +78,7 @@ function App() {
     let count = 0;
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
-        const piece = game.board[row][col];
+        const piece = game?.board[row][col];
         if (piece && piece.toLowerCase() === color) {
           count++;
         }
@@ -105,7 +99,11 @@ function App() {
   };
 
   const calculateValidMoves = (row: number, col: number): Move[] => {
+    if (!game) return [];
+    
     const piece = game.board[row][col];
+    if (!piece) return [];
+
     console.log('Calculating moves for piece:', {
       row,
       col,
@@ -114,8 +112,6 @@ function App() {
       isBlackSquare: (row + col) % 2 === 0
     });
     
-    if (!piece) return [];
-
     const isKing = piece === piece.toUpperCase();
     const moves: Move[] = [];
 
@@ -145,7 +141,7 @@ function App() {
 
         console.log('Checking jump:', {
           from: { row, col },
-          over: { row: jumpedRow, col: jumpedCol, piece: game.board[jumpedRow]?.[jumpedCol] },
+          over: { row: jumpedRow, col: jumpedCol, piece: game?.board[jumpedRow]?.[jumpedCol] },
           to: { row: newRow, col: newCol },
           isBlackSquare: (newRow + newCol) % 2 === 0
         });
@@ -157,14 +153,14 @@ function App() {
         }
         
         // Check if there's an opponent's piece to jump over
-        const jumpedPiece = game.board[jumpedRow][jumpedCol];
+        const jumpedPiece = game?.board[jumpedRow][jumpedCol];
         if (!jumpedPiece) {
           console.log('No piece to jump over');
           continue;
         }
         
         // Check if landing square is empty
-        if (game.board[newRow][newCol]) {
+        if (game?.board[newRow][newCol]) {
           console.log('Landing square occupied');
           continue;
         }
@@ -211,7 +207,7 @@ function App() {
         }
         
         // Check if destination square is empty
-        if (game.board[newRow][newCol]) {
+        if (game?.board[newRow][newCol]) {
           console.log('Destination square occupied');
           continue;
         }
@@ -238,132 +234,100 @@ function App() {
     return moves;
   };
 
-  const handleSquareClick = async (row: number, col: number) => {
-    if (!game.gameId || game.status === 'finished') return;
-    
-    const piece = game.board?.[row]?.[col];
-    console.log('Clicked square:', {row, col, piece});
-    console.log('Game state:', {
-      currentPlayer: game.currentPlayer,
-      selectedSquare,
-      validMoves
-    });
+  const handleSquareClick = (row: number, col: number) => {
+    if (!game) return;
 
-    // First click - selecting a piece
-    if (!selectedSquare) {
-      if (!piece) {
-        console.log('Clicked empty square');
-        return;
-      }
+    const piece = game.board[row][col];
+    console.log('Clicked square:', { row, col, piece });
+    console.log('Game state:', { currentPlayer: game.currentPlayer, selectedSquare, validMoves });
 
-      const isCurrentPlayersPiece = 
-        (game.currentPlayer === 'red' && piece.toLowerCase() === 'r') ||
-        (game.currentPlayer === 'black' && piece.toLowerCase() === 'b');
+    // If there's a jumping piece, only allow that piece to move
+    if (jumpingPiece && (row !== jumpingPiece.row || col !== jumpingPiece.col) && piece?.toLowerCase() === game.currentPlayer[0]) {
+      console.log('Must continue jump with piece at:', jumpingPiece);
+      return;
+    }
 
-      if (!isCurrentPlayersPiece) {
-        alert("You can only move your own pieces!");
-        return;
-      }
-
-      const moves = calculateValidMoves(row, col);
-      console.log('Calculated valid moves:', moves);
-      
-      if (moves.length === 0) {
-        alert("This piece has no valid moves!");
-        return;
-      }
-
+    // If it's a piece of the current player's color
+    if (piece && piece.toLowerCase() === game.currentPlayer[0]) {
       setSelectedSquare({ row, col, piece });
+      const moves = calculateValidMoves(row, col);
       setValidMoves(moves);
-      return;
+      console.log('Calculated valid moves:', moves);
     }
-
-    // Second click - making a move
-    if (selectedSquare.row === row && selectedSquare.col === col) {
-      console.log('Deselecting piece');
+    // If it's a valid move for the selected piece
+    else if (selectedSquare && validMoves.some(move => move.row === row && move.col === col)) {
+      handleMove(row, col);
+    }
+    // Deselect if clicking elsewhere
+    else {
       setSelectedSquare(null);
       setValidMoves([]);
-      return;
     }
+  };
 
-    // Check if this is a valid move
-    const isValidDestination = validMoves.some(move => move.row === row && move.col === col);
-    console.log('Move validation:', {
-      isValidDestination,
-      selectedSquare,
-      targetSquare: {row, col}
-    });
-
-    if (!isValidDestination) {
-      console.log('Invalid move - not in valid moves list');
-      setSelectedSquare(null);
-      setValidMoves([]);
-      return;
-    }
+  const handleMove = async (toRow: number, toCol: number) => {
+    if (!selectedSquare || !game) return;
 
     try {
-      const moveData = {
-        fromRow: selectedSquare.row,
-        fromCol: selectedSquare.col,
-        toRow: row,
-        toCol: col
-      };
-      console.log('Sending move to API:', moveData);
-
       const response = await fetch(`${apiEndpoint}/games/${game.gameId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
         },
-        mode: 'cors',
-        body: JSON.stringify(moveData)
+        body: JSON.stringify({
+          fromRow: selectedSquare.row,
+          fromCol: selectedSquare.col,
+          toRow,
+          toCol
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        console.error('API Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        throw new Error(errorData.error || 'Invalid move');
+        throw new Error('Failed to make move');
       }
 
       const updatedGame = await response.json();
-      console.log('Move successful:', updatedGame);
-      
       setGame(updatedGame);
-      
-      // Only clear selection if there are no more jumps available
-      if (!updatedGame.hasMoreJumps) {
-        setSelectedSquare(null);
-        setValidMoves([]);
-      } else {
-        // Update selected square to new position for next jump
-        setSelectedSquare({
-          row,
-          col,
-          piece: updatedGame.board[row][col]
-        });
-        // Calculate new valid moves from the new position
-        setValidMoves(calculateValidMoves(row, col));
+
+      // Check if this was a jump move
+      const isJump = Math.abs(toRow - selectedSquare.row) === 2;
+
+      if (isJump) {
+        // Check for additional jumps from the new position
+        const additionalJumps = calculateValidMoves(toRow, toCol).filter(move => 
+          Math.abs(move.row - toRow) === 2
+        );
+
+        if (additionalJumps.length > 0) {
+          // If there are more jumps available, keep the piece selected
+          const jumpingPiece = { 
+            row: toRow, 
+            col: toCol, 
+            piece: game.board[selectedSquare.row][selectedSquare.col] 
+          };
+          setSelectedSquare(jumpingPiece);
+          setValidMoves(additionalJumps);
+          setJumpingPiece(jumpingPiece);
+          return;
+        }
       }
+
+      // If no additional jumps or not a jump move, clear selection
+      setSelectedSquare(null);
+      setValidMoves([]);
+      setJumpingPiece(null);
 
       // Check for winner after move
       const winner = checkWinner();
       if (winner) {
-        setGame(prev => ({
-          ...prev,
+        setGame({
+          ...updatedGame,
           status: 'finished',
-          winner: winner
-        }));
+          winner
+        });
       }
     } catch (error) {
       console.error('Error making move:', error);
-      alert(error instanceof Error ? error.message : 'Invalid move. Please try again.');
-      setSelectedSquare(null);
-      setValidMoves([]);
     }
   };
 
@@ -374,16 +338,16 @@ function App() {
         fontSize: '1.5em', 
         marginBottom: '20px',
         fontWeight: 'bold',
-        color: game.status === 'finished' ? '#4CAF50' : '#2196F3'
+        color: game?.status === 'finished' ? '#4CAF50' : '#2196F3'
       }}>
-        {game.status === 'finished' && game.winner ? `Game Over - ${game.winner.charAt(0).toUpperCase() + game.winner.slice(1)} Wins!` : `Current Turn: ${game.currentPlayer.charAt(0).toUpperCase() + game.currentPlayer.slice(1)}`}
+        {getGameStatus()}
       </div>
       <div className="game-board" style={{
         display: 'inline-block',
         border: '2px solid #333',
         backgroundColor: '#fff'
       }}>
-        {game.board.map((row, rowIndex) => (
+        {game?.board.map((row, rowIndex) => (
           <div key={rowIndex} className="board-row" style={{
             display: 'flex'
           }}>
@@ -449,21 +413,25 @@ function App() {
           </div>
         ))}
       </div>
-      <div style={{ marginTop: '20px' }}>
-        <button 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        marginTop: '20px'
+      }}>
+        <button
           onClick={createNewGame}
           style={{
             padding: '10px 20px',
-            fontSize: '16px',
+            fontSize: '1.2em',
             backgroundColor: '#4CAF50',
             color: 'white',
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: '5px',
             cursor: 'pointer',
             marginBottom: '20px'
           }}
         >
-          {game.status === 'finished' ? 'Play Again' : game.gameId ? 'Restart Game' : 'New Game'}
+          {!game ? 'New Game' : game.status === 'finished' ? 'Play Again' : 'Restart Game'}
         </button>
       </div>
     </div>
