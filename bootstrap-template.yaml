@@ -1,0 +1,42 @@
+Resources:
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cdk-hnb659fds-deploy-role-811402695427-us-east-1
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: 
+                - arn:aws:iam::811402695427:user/kcory
+                - arn:aws:iam::811402695427:root
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  ExecRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cdk-hnb659fds-cfn-exec-role-811402695427-us-east-1
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  FileAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: cdk-hnb659fds-assets-811402695427-us-east-1
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true

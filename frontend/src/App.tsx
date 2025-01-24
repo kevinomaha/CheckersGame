@@ -33,10 +33,14 @@ function App() {
     if (!game) {
       return "Click 'New Game' to start playing!";
     }
+    
+    const redPieces = countPieces('r');
+    const blackPieces = countPieces('b');
+    
     if (game.status === 'finished' && game.winner) {
-      return `Game Over - ${game.winner.charAt(0).toUpperCase() + game.winner.slice(1)} Wins!`;
+      return `Game Over - ${game.winner.charAt(0).toUpperCase() + game.winner.slice(1)} Wins! (Red: ${redPieces}, Black: ${blackPieces})`;
     }
-    return `Current Turn: ${game.currentPlayer.charAt(0).toUpperCase() + game.currentPlayer.slice(1)}`;
+    return `Current Turn: ${game.currentPlayer.charAt(0).toUpperCase() + game.currentPlayer.slice(1)} (Red: ${redPieces}, Black: ${blackPieces})`;
   };
 
   const createNewGame = async () => {
@@ -68,6 +72,7 @@ function App() {
       
       setSelectedSquare(null);
       setValidMoves([]);
+      
     } catch (error) {
       console.error('Error creating game:', error);
       alert('Failed to create new game. Please try again.');
@@ -88,10 +93,16 @@ function App() {
   };
 
   const checkWinner = (): string | null => {
+    if (!game || !game.board) return null;
+    
     const redPieces = countPieces('r');
     const blackPieces = countPieces('b');
 
-    console.log('Piece count:', { red: redPieces, black: blackPieces });
+    console.log('Piece count check:', { 
+      red: redPieces, 
+      black: blackPieces,
+      board: game.board
+    });
 
     if (redPieces === 0) return 'black';
     if (blackPieces === 0) return 'red';
@@ -229,7 +240,6 @@ function App() {
         }
       }
     }
-
     console.log('Final valid moves:', moves);
     return moves;
   };
@@ -287,6 +297,45 @@ function App() {
       }
 
       const updatedGame = await response.json();
+      
+      // Check for winner after move
+      const winner = checkWinner();
+      if (winner) {
+        console.log('Winner found:', winner);
+        const finalGame = {
+          ...updatedGame,
+          status: 'finished',
+          winner
+        };
+        console.log('Setting final game state:', finalGame);
+        setGame(finalGame);
+        
+        // Update the game status on the server
+        try {
+          const updateResponse = await fetch(`${apiEndpoint}/games/${game.gameId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              status: 'finished',
+              winner
+            }),
+          });
+          
+          if (!updateResponse.ok) {
+            console.error('Failed to update game status on server');
+          }
+        } catch (error) {
+          console.error('Error updating game status:', error);
+        }
+        
+        setSelectedSquare(null);
+        setValidMoves([]);
+        setJumpingPiece(null);
+        return;
+      }
+
       setGame(updatedGame);
 
       // Check if this was a jump move
@@ -303,7 +352,7 @@ function App() {
           const jumpingPiece = { 
             row: toRow, 
             col: toCol, 
-            piece: game.board[selectedSquare.row][selectedSquare.col] 
+            piece: updatedGame.board[toRow][toCol]
           };
           setSelectedSquare(jumpingPiece);
           setValidMoves(additionalJumps);
@@ -316,16 +365,6 @@ function App() {
       setSelectedSquare(null);
       setValidMoves([]);
       setJumpingPiece(null);
-
-      // Check for winner after move
-      const winner = checkWinner();
-      if (winner) {
-        setGame({
-          ...updatedGame,
-          status: 'finished',
-          winner
-        });
-      }
     } catch (error) {
       console.error('Error making move:', error);
     }
@@ -342,6 +381,23 @@ function App() {
       }}>
         {getGameStatus()}
       </div>
+      {(!game || game.status === 'finished') && (
+        <button 
+          onClick={createNewGame}
+          style={{
+            fontSize: '1.2em',
+            padding: '10px 20px',
+            marginBottom: '20px',
+            backgroundColor: '#4CAF50',
+            color: 'white',
+            border: 'none',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          New Game
+        </button>
+      )}
       <div className="game-board" style={{
         display: 'inline-block',
         border: '2px solid #333',
@@ -412,27 +468,6 @@ function App() {
             })}
           </div>
         ))}
-      </div>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        marginTop: '20px'
-      }}>
-        <button
-          onClick={createNewGame}
-          style={{
-            padding: '10px 20px',
-            fontSize: '1.2em',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: 'pointer',
-            marginBottom: '20px'
-          }}
-        >
-          {!game ? 'New Game' : game.status === 'finished' ? 'Play Again' : 'Restart Game'}
-        </button>
       </div>
     </div>
   );

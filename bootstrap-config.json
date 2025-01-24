@@ -1,0 +1,9 @@
+{
+  "version": "1.0",
+  "bootstrapStackVersionSsmParameter": "/cdk-bootstrap/hnb659fds/version",
+  "deployer": "cdk-assets",
+  "trustedAccounts": [
+    "811402695427"
+  ],
+  "qualifier": "hnb659fds"
+}

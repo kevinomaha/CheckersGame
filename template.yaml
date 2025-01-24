@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: CDK Bootstrap Template
+
+Resources:
+  CFNExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cdk-cfn-exec-role-v2
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  CDKDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: cdk-deploy-role-v2
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+Outputs:
+  CFNExecutionRoleArn:
+    Description: The ARN of the CFN Execution Role
+    Value: !GetAtt CFNExecutionRole.Arn
+  CDKDeployRoleArn:
+    Description: The ARN of the CDK Deploy Role
+    Value: !GetAtt CDKDeployRole.Arn

@@ -9,16 +9,28 @@ from aws_cdk import (
     aws_s3_deployment as s3deploy,
     RemovalPolicy,
     CfnOutput,
-    Duration
+    Duration,
+    Tags,
+    aws_iam as iam
 )
 from constructs import Construct
+from .config import Environment
+import time
 
 class CheckersGameStack(Stack):
-    def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
+    def __init__(self, scope: Construct, construct_id: str, env_config: Environment, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
+
+        # Add environment tag to all resources
+        Tags.of(self).add('Environment', env_config.name)
+
+        # Generate a unique bucket name using timestamp
+        timestamp = str(int(time.time()))
+        bucket_name = f"checkers-game-{env_config.name}-{timestamp}".lower()
 
         # S3 bucket for website hosting
         website_bucket = s3.Bucket(self, "WebsiteBucket",
+            bucket_name=bucket_name,
             website_index_document="index.html",
             website_error_document="index.html",
             public_read_access=True,
@@ -32,42 +44,7 @@ class CheckersGameStack(Stack):
             )
         )
 
-        # CloudFront distribution
-        distribution = cloudfront.Distribution(self, "CheckersDistribution",
-            default_behavior=cloudfront.BehaviorOptions(
-                origin=origins.S3Origin(website_bucket),
-                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
-                allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
-                cache_policy=cloudfront.CachePolicy(self, "CheckersCachePolicy",
-                    cache_policy_name="CheckersCachePolicy",
-                    min_ttl=Duration.seconds(0),
-                    default_ttl=Duration.seconds(0),
-                    max_ttl=Duration.seconds(1),
-                    enable_accept_encoding_brotli=True,
-                    enable_accept_encoding_gzip=True,
-                    comment="Cache policy for Checkers Game"
-                )
-            ),
-            default_root_object="index.html",
-            error_responses=[
-                cloudfront.ErrorResponse(
-                    http_status=403,
-                    response_http_status=200,
-                    response_page_path="/index.html",
-                    ttl=Duration.seconds(0)
-                ),
-                cloudfront.ErrorResponse(
-                    http_status=404,
-                    response_http_status=200,
-                    response_page_path="/index.html",
-                    ttl=Duration.seconds(0)
-                )
-            ],
-            enable_logging=True,
-            price_class=cloudfront.PriceClass.PRICE_CLASS_100
-        )
-
-        # DynamoDB tables
+        # DynamoDB tables with simplified configuration
         game_table = dynamodb.Table(self, "GameTable",
             partition_key=dynamodb.Attribute(
                 name="gameId",
@@ -86,7 +63,18 @@ class CheckersGameStack(Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST
         )
 
-        # Lambda function
+        # Lambda function with basic execution role
+        lambda_role = iam.Role(self, "LambdaExecutionRole",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole")
+            ]
+        )
+
+        # Add DynamoDB permissions to Lambda role
+        game_table.grant_read_write_data(lambda_role)
+        stats_table.grant_read_write_data(lambda_role)
+
         game_lambda = lambda_.Function(self, "CheckersGameFunction",
             runtime=lambda_.Runtime.PYTHON_3_9,
             handler="game.handler",
@@ -96,86 +84,41 @@ class CheckersGameStack(Stack):
                 "STATS_TABLE": stats_table.table_name
             },
             memory_size=256,
-            timeout=Duration.seconds(30)
+            timeout=Duration.seconds(30),
+            role=lambda_role
         )
 
-        # Grant Lambda permissions
-        game_table.grant_read_write_data(game_lambda)
-        stats_table.grant_read_write_data(game_lambda)
-
-        # API Gateway
+        # API Gateway with simplified configuration
         api = apigateway.RestApi(self, "CheckersApi",
             rest_api_name="Checkers Game API",
-            default_cors_preflight_options=apigateway.CorsOptions(
-                allow_origins=["*"],
-                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-                allow_headers=["Content-Type", "Accept", "Authorization", "Origin", "X-Requested-With"],
-                allow_credentials=True,
-                max_age=Duration.days(1)
-            )
+            deploy_options=apigateway.StageOptions(stage_name=env_config.name)
         )
 
-        # Add CORS response headers to all methods
-        method_responses = [
-            apigateway.MethodResponse(
-                status_code="200",
-                response_parameters={
-                    'method.response.header.Access-Control-Allow-Origin': True,
-                    'method.response.header.Access-Control-Allow-Headers': True,
-                    'method.response.header.Access-Control-Allow-Methods': True,
-                    'method.response.header.Access-Control-Allow-Credentials': True
-                }
-            )
-        ]
+        game_integration = apigateway.LambdaIntegration(game_lambda)
+        api.root.add_method("ANY", game_integration)
+        api.root.add_proxy(default_integration=game_integration)
 
-        integration_responses = [
-            apigateway.IntegrationResponse(
-                status_code="200",
-                response_parameters={
-                    'method.response.header.Access-Control-Allow-Origin': "'*'",
-                    'method.response.header.Access-Control-Allow-Headers': "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'",
-                    'method.response.header.Access-Control-Allow-Methods': "'GET,POST,PUT,DELETE,OPTIONS'",
-                    'method.response.header.Access-Control-Allow-Credentials': "'true'"
-                }
-            )
-        ]
-
-        # Lambda integration with CORS
-        lambda_integration = apigateway.LambdaIntegration(
-            game_lambda,
-            proxy=True,
-            integration_responses=integration_responses
-        )
-
-        games = api.root.add_resource("games")
-        games.add_method(
-            "POST",
-            lambda_integration,
-            method_responses=method_responses
-        )
-        games.add_method(
-            "GET",
-            lambda_integration,
-            method_responses=method_responses
-        )
-
-        game = games.add_resource("{gameId}")
-        game.add_method(
-            "GET",
-            lambda_integration,
-            method_responses=method_responses
-        )
-        game.add_method(
-            "PUT",
-            lambda_integration,
-            method_responses=method_responses
-        )
-
-        stats = api.root.add_resource("stats")
-        stats.add_method(
-            "GET",
-            lambda_integration,
-            method_responses=method_responses
+        # CloudFront distribution with simplified configuration
+        distribution = cloudfront.Distribution(self, "CheckersDistribution",
+            default_behavior=cloudfront.BehaviorOptions(
+                origin=origins.S3BucketOrigin(website_bucket),
+                viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                allowed_methods=cloudfront.AllowedMethods.ALLOW_ALL,
+                cache_policy=cloudfront.CachePolicy.CACHING_DISABLED
+            ),
+            default_root_object="index.html",
+            error_responses=[
+                cloudfront.ErrorResponse(
+                    http_status=403,
+                    response_http_status=200,
+                    response_page_path="/index.html"
+                ),
+                cloudfront.ErrorResponse(
+                    http_status=404,
+                    response_http_status=200,
+                    response_page_path="/index.html"
+                )
+            ]
         )
 
         # Deploy frontend to S3
@@ -189,11 +132,11 @@ class CheckersGameStack(Stack):
             prune=True
         )
 
-        # Output the CloudFront URL and API endpoint
-        CfnOutput(self, "WebsiteURL",
-            value=distribution.distribution_domain_name
+        # Output the CloudFront URL and API Gateway URL
+        CfnOutput(self, "CloudFrontURL",
+            value=f"https://{distribution.distribution_domain_name}"
         )
-
-        CfnOutput(self, "ApiEndpoint",
+        
+        CfnOutput(self, "APIGatewayURL",
             value=api.url
         )
