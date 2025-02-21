@@ -373,16 +373,112 @@ function App() {
   return (
     <div className="App" style={{ padding: '20px', textAlign: 'center' }}>
       <h1>Checkers Game</h1>
-      <div className="game-status" style={{ 
-        fontSize: '1.5em', 
-        marginBottom: '20px',
-        fontWeight: 'bold',
-        color: game?.status === 'finished' ? '#4CAF50' : '#2196F3'
-      }}>
-        {getGameStatus()}
-      </div>
-      {(!game || game.status === 'finished') && (
+      {game && (
+        <div>
+          <div style={{ marginBottom: '20px' }}>
+            <button 
+              data-testid="new-game" 
+              onClick={createNewGame}
+              style={{
+                fontSize: '1.2em',
+                padding: '10px 20px',
+                marginBottom: '20px',
+                backgroundColor: '#4CAF50',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer'
+              }}
+            >
+              New Game
+            </button>
+            <div data-testid="current-player">
+              Current Player: {game.currentPlayer}
+            </div>
+            <div data-testid="game-status">
+              Status: {getGameStatus()}
+            </div>
+          </div>
+          <div className="game-board" style={{
+            display: 'inline-block',
+            border: '2px solid #333',
+            backgroundColor: '#fff'
+          }}>
+            {game?.board.map((row, rowIndex) => (
+              <div key={rowIndex} className="board-row" style={{
+                display: 'flex'
+              }}>
+                {row.map((piece, colIndex) => (
+                  <div
+                    key={`${rowIndex}-${colIndex}`}
+                    data-testid={`square-${rowIndex}-${colIndex}`}
+                    className={`square ${(rowIndex + colIndex) % 2 === 0 ? 'black' : 'white'} ${
+                      validMoves.some(move => move.row === rowIndex && move.col === colIndex) ? 'valid-move' : ''
+                    } ${selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex ? 'selected' : ''}`}
+                    onClick={() => handleSquareClick(rowIndex, colIndex)}
+                    style={{
+                      width: '60px',
+                      height: '60px',
+                      backgroundColor: (rowIndex + colIndex) % 2 === 0 ? '#666' : '#fff',
+                      border: selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex ? '3px solid yellow' : '1px solid #999',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {piece && (
+                      <div
+                        data-testid={`piece-${rowIndex}-${colIndex}`}
+                        className={`piece ${piece.toLowerCase() === 'r' ? 'red' : 'black'} ${
+                          piece === piece.toUpperCase() ? 'king' : ''
+                        }`}
+                        style={{
+                          width: '80%',
+                          height: '80%',
+                          borderRadius: '50%',
+                          backgroundColor: piece.toLowerCase() === 'r' ? '#ff4444' : '#333',
+                          border: '2px solid #fff',
+                          boxShadow: '0 0 10px rgba(0,0,0,0.3)',
+                          position: 'relative'
+                        }}
+                      >
+                        {piece === piece.toUpperCase() && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            color: piece.toLowerCase() === 'r' ? '#ffcccc' : '#666',
+                            fontSize: '24px'
+                          }}>
+                            ♔
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {validMoves.some(move => move.row === rowIndex && move.col === colIndex) && (
+                      <div style={{
+                        position: 'absolute',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(0, 255, 0, 0.5)',
+                        border: '2px solid rgba(0, 255, 0, 0.8)'
+                      }} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {!game && (
         <button 
+          data-testid="new-game" 
           onClick={createNewGame}
           style={{
             fontSize: '1.2em',
@@ -398,77 +494,6 @@ function App() {
           New Game
         </button>
       )}
-      <div className="game-board" style={{
-        display: 'inline-block',
-        border: '2px solid #333',
-        backgroundColor: '#fff'
-      }}>
-        {game?.board.map((row, rowIndex) => (
-          <div key={rowIndex} className="board-row" style={{
-            display: 'flex'
-          }}>
-            {row.map((piece, colIndex) => {
-              const isBlackSquare = (rowIndex + colIndex) % 2 === 0;
-              const isSelected = selectedSquare?.row === rowIndex && selectedSquare?.col === colIndex;
-              const isValidMove = validMoves.some(move => move.row === rowIndex && move.col === colIndex);
-              
-              return (
-                <div
-                  key={colIndex}
-                  onClick={() => handleSquareClick(rowIndex, colIndex)}
-                  style={{
-                    width: '60px',
-                    height: '60px',
-                    backgroundColor: isBlackSquare ? '#666' : '#fff',
-                    border: isSelected ? '3px solid yellow' : '1px solid #999',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    cursor: 'pointer',
-                    position: 'relative',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  {piece && (
-                    <div style={{
-                      width: '80%',
-                      height: '80%',
-                      borderRadius: '50%',
-                      backgroundColor: piece.toLowerCase() === 'r' ? '#ff4444' : '#333',
-                      border: '2px solid #fff',
-                      boxShadow: '0 0 10px rgba(0,0,0,0.3)',
-                      position: 'relative'
-                    }}>
-                      {piece === piece.toUpperCase() && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          transform: 'translate(-50%, -50%)',
-                          color: piece.toLowerCase() === 'r' ? '#ffcccc' : '#666',
-                          fontSize: '24px'
-                        }}>
-                          ♔
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {isValidMove && (
-                    <div style={{
-                      position: 'absolute',
-                      width: '20px',
-                      height: '20px',
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(0, 255, 0, 0.5)',
-                      border: '2px solid rgba(0, 255, 0, 0.8)'
-                    }} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
     </div>
   );
 }
